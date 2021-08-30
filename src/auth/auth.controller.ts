@@ -1,4 +1,5 @@
-import { Controller, Post, Body, UseGuards, Get } from '@nestjs/common';
+import { Res, Controller, Post, Body, UseGuards, Get } from '@nestjs/common';
+import { Response } from 'express';
 import { SignInDto } from 'src/users/dto/signin.dto';
 import { SignUpDto } from 'src/users/dto/signup.dto';
 import { AuthService } from './auth.service';
@@ -14,8 +15,8 @@ export class AuthController {
   }
 
   @Post('signin')
-  async signIn(@Body() signInDto: SignInDto): Promise<UserWithToken> {
-    return this.authService.signIn(signInDto);
+  async signIn(@Res() res: Response, @Body() signInDto: SignInDto) {
+    return this.authService.signIn(signInDto, res);
   }
 
   @UseGuards(JwtAuthGuard)
