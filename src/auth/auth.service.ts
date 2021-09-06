@@ -6,10 +6,12 @@ import { UserRepository } from 'src/users/users.repository';
 import * as bcrypt from 'bcrypt';
 import { SignUpDto } from 'src/users/dto/signup.dto';
 import { Response } from 'express';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class AuthService {
   constructor(
+    @InjectRepository(User)
     private userRepository: UserRepository,
     private jwtService: JwtService,
   ) {}
