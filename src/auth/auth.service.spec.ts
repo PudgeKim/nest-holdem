@@ -2,6 +2,8 @@ import { ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { rejects } from 'assert';
+import { sign } from 'crypto';
 import { SignUpDto } from 'src/users/dto/signup.dto';
 import { User } from 'src/users/user.entity';
 import { AuthService } from './auth.service';
@@ -72,7 +74,7 @@ describe('AuthService', () => {
       nickname: 'sonny',
       password: 'mypassword',
     };
-    expect(await service.signUp(signUpDto)).toThrow(
+    await expect(service.signUp(signUpDto)).rejects.toThrow(
       new ConflictException('username already exists'),
     );
   });
@@ -83,7 +85,7 @@ describe('AuthService', () => {
       nickname: 'batman',
       password: 'mypassword',
     };
-    expect(await service.signUp(signUpDto)).toThrowError(
+    await expect(service.signUp(signUpDto)).rejects.toThrow(
       new ConflictException('nickname already exists'),
     );
   });
