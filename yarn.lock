@@ -1351,7 +1351,7 @@
   "resolved" "https://registry.npmjs.org/abbrev/-/abbrev-1.1.1.tgz"
   "version" "1.1.1"
 
-"accepts@~1.3.4", "accepts@~1.3.7":
+"accepts@^1.3.7", "accepts@~1.3.4", "accepts@~1.3.7":
   "integrity" "sha512-Il80Qs2WjYlJIBNzNkK6KYqlVMTbZLXgHx2oT0pU/fjRHyEp+PEfEPY0R3WCwAGVOtauxh1hOxNgIf5bv7dQpA=="
   "resolved" "https://registry.npmjs.org/accepts/-/accepts-1.3.7.tgz"
   "version" "1.3.7"
@@ -2287,7 +2287,7 @@
   "resolved" "https://registry.npmjs.org/denque/-/denque-1.5.1.tgz"
   "version" "1.5.1"
 
-"depd@~1.1.2":
+"depd@^1.1.0", "depd@~1.1.2":
   "integrity" "sha1-m81S4UwJd2PnSbJ0xDRu0uVgtak="
   "resolved" "https://registry.npmjs.org/depd/-/depd-1.1.2.tgz"
   "version" "1.1.2"
@@ -2892,7 +2892,7 @@
   "resolved" "https://registry.npmjs.org/forwarded/-/forwarded-0.2.0.tgz"
   "version" "0.2.0"
 
-"fresh@0.5.2":
+"fresh@^0.5.2", "fresh@0.5.2":
   "integrity" "sha1-PYyt2Q2XZWn6g1qx+OSyOhBWBac="
   "resolved" "https://registry.npmjs.org/fresh/-/fresh-0.5.2.tgz"
   "version" "0.5.2"
@@ -4169,7 +4169,7 @@
   dependencies:
     "fs-monkey" "1.0.3"
 
-"merge-descriptors@1.0.1":
+"merge-descriptors@^1.0.1", "merge-descriptors@1.0.1":
   "integrity" "sha1-sAqqVW3YtEVoFQ7J0blT8/kMu2E="
   "resolved" "https://registry.npmjs.org/merge-descriptors/-/merge-descriptors-1.0.1.tgz"
   "version" "1.0.1"
@@ -4209,15 +4209,15 @@
   dependencies:
     "mime-db" "1.49.0"
 
+"mime@^1.3.4", "mime@1.6.0":
+  "integrity" "sha512-x0Vn8spI+wuJ1O6S7gnbaQg8Pxh4NNHb7KSINmEWKiPE4RKOplvijn+NkmYmmRgP68mc70j2EbeTFRsrswaQeg=="
+  "resolved" "https://registry.npmjs.org/mime/-/mime-1.6.0.tgz"
+  "version" "1.6.0"
+
 "mime@^2.4.6":
   "integrity" "sha512-tqkh47FzKeCPD2PUiPB6pkbMzsCasjxAfC62/Wap5qrUWcb+sFasXUC5I3gYM5iBM8v/Qpn4UK0x+j0iHyFPDg=="
   "resolved" "https://registry.npmjs.org/mime/-/mime-2.5.2.tgz"
   "version" "2.5.2"
-
-"mime@1.6.0":
-  "integrity" "sha512-x0Vn8spI+wuJ1O6S7gnbaQg8Pxh4NNHb7KSINmEWKiPE4RKOplvijn+NkmYmmRgP68mc70j2EbeTFRsrswaQeg=="
-  "resolved" "https://registry.npmjs.org/mime/-/mime-1.6.0.tgz"
-  "version" "1.6.0"
 
 "mimic-fn@^2.1.0":
   "integrity" "sha512-OqbOk5oEQeAZ8WXWydlu9HJjz9WVdEIvamMCcXmuqUYjTknH/sqsWvhQ3vgwKFRR1HpjvNBKQ37nbJgYzGqGcg=="
@@ -4360,6 +4360,21 @@
   "integrity" "sha1-h6kGXNs1XTGC2PlM4RGIuCXGijs="
   "resolved" "https://registry.npmjs.org/node-int64/-/node-int64-0.4.0.tgz"
   "version" "0.4.0"
+
+"node-mocks-http@^1.10.1":
+  "integrity" "sha512-/Nz83kiJ3z+vGqxmlDyv8+L1CJno+gH23DzG3oPH9dBSfMYa5IFVwPgZpXCB2kdiiIu/HoDpZ2BuLqQs7qjFLQ=="
+  "resolved" "https://registry.npmjs.org/node-mocks-http/-/node-mocks-http-1.10.1.tgz"
+  "version" "1.10.1"
+  dependencies:
+    "accepts" "^1.3.7"
+    "depd" "^1.1.0"
+    "fresh" "^0.5.2"
+    "merge-descriptors" "^1.0.1"
+    "methods" "^1.1.2"
+    "mime" "^1.3.4"
+    "parseurl" "^1.3.3"
+    "range-parser" "^1.2.0"
+    "type-is" "^1.6.18"
 
 "node-modules-regexp@^1.0.0":
   "integrity" "sha1-jZ2+KJZKSsVxLpExZCEHxx6Q7EA="
@@ -4608,7 +4623,7 @@
   "resolved" "https://registry.npmjs.org/parse5/-/parse5-6.0.1.tgz"
   "version" "6.0.1"
 
-"parseurl@~1.3.3":
+"parseurl@^1.3.3", "parseurl@~1.3.3":
   "integrity" "sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ=="
   "resolved" "https://registry.npmjs.org/parseurl/-/parseurl-1.3.3.tgz"
   "version" "1.3.3"
@@ -4871,7 +4886,7 @@
   dependencies:
     "safe-buffer" "^5.1.0"
 
-"range-parser@~1.2.1":
+"range-parser@^1.2.0", "range-parser@~1.2.1":
   "integrity" "sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg=="
   "resolved" "https://registry.npmjs.org/range-parser/-/range-parser-1.2.1.tgz"
   "version" "1.2.1"
@@ -5884,7 +5899,7 @@
   "resolved" "https://registry.npmjs.org/type-fest/-/type-fest-0.21.3.tgz"
   "version" "0.21.3"
 
-"type-is@^1.6.4", "type-is@~1.6.17", "type-is@~1.6.18":
+"type-is@^1.6.18", "type-is@^1.6.4", "type-is@~1.6.17", "type-is@~1.6.18":
   "integrity" "sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g=="
   "resolved" "https://registry.npmjs.org/type-is/-/type-is-1.6.18.tgz"
   "version" "1.6.18"
