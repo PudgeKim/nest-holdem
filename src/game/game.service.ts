@@ -5,22 +5,41 @@ import { v4 } from 'uuid';
 
 @Injectable()
 export class GameService {
-  constructor(private readonly redisServce: RedisService) {}
+  client: any;
+  constructor(private readonly redisServce: RedisService) {
+    this.client = redisServce.getClient();
+  }
 
   async createRoom(createRoomDto: CreateRoomDto) {
-    const { id, nickname } = createRoomDto;
-    //const roomId: string = v4();
-    const roomId = 'testroomkey';
-    const client = await this.redisServce.getClient();
-    client.hmset(roomId, id, 1);
+    const { userId, nickname, roomName } = createRoomDto;
+    const roomId: string = v4();
 
-    client.hgetall(roomId, (err, val) => {
-      console.log('val: ', val);
-    });
+    this.client.hmset(roomId, 'host', nickname, 'roomName', roomName);
+
+    return {
+      roomId,
+      userId,
+      nickname,
+      roomName,
+    };
   }
 
   async getAllRooms() {
-    const redisClient = await this.redisServce.getClient();
-    console.log(redisClient);
+    const allRoomKeys: string[] = await this.client.keys('*');
+    console.log(allRoomKeys);
+    const allRooms = [];
+
+    for (let i = 0; i < allRoomKeys.length; i++) {
+      const roomName = await this.client.hget(allRoomKeys[i], 'roomName');
+      const hostNickname = await this.client.hget(allRoomKeys[i], 'host');
+      allRooms.push({
+        roomName: roomName,
+        host: hostNickname,
+      });
+    }
+
+    return {
+      allRooms,
+    };
   }
 }

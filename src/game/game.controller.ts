@@ -11,7 +11,7 @@ export class GameController {
     return this.gameService.createRoom(createRoomDto);
   }
 
-  @Get('redis-test')
+  @Get('all-rooms')
   async getRedisClient() {
     return this.gameService.getAllRooms();
   }
