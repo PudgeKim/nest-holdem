@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 
 @EntityRepository(User)
-export class UserRepository extends Repository<User> {
+export class UserRepo extends Repository<User> {
   async signUp(signUpDto: SignUpDto): Promise<PublicUser> {
     const { username, password, nickname } = signUpDto;
 
