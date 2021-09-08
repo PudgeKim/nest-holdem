@@ -1,8 +1,7 @@
-import { ConflictException, Res, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Response } from 'express';
 import { SignInDto } from 'src/users/dto/signin.dto';
 import { SignUpDto } from 'src/users/dto/signup.dto';
 import { User } from 'src/users/user.entity';
