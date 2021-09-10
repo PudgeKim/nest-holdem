@@ -1,6 +1,14 @@
-import { Res, Controller, Post, Body, UseGuards, Get } from '@nestjs/common';
+import {
+  Res,
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Req,
+} from '@nestjs/common';
 import { ApiTags, ApiResponse } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { SignInDto } from 'src/users/dto/signin.dto';
 import { SignUpDto } from 'src/users/dto/signup.dto';
 import { AuthService } from './auth.service';
@@ -33,6 +41,16 @@ export class AuthController {
   @Post('signin')
   async signIn(@Res() res: Response, @Body() signInDto: SignInDto) {
     return this.authService.signIn(signInDto, res);
+  }
+
+  @Get('signout')
+  signOut(@Req() req: Request, @Res() res: Response) {
+    return this.authService.signOut(req, res);
+  }
+
+  @Get('check-login')
+  checkLogin(@Req() req: Request) {
+    return this.authService.checkLogin(req);
   }
 
   @UseGuards(JwtAuthGuard)

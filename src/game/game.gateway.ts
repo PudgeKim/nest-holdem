@@ -12,7 +12,7 @@ import { Server } from 'ws';
 import { Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 
-@WebSocketGateway()
+@WebSocketGateway({ namespace: 'holdem-room' })
 export class GameGateway
   implements OnGatewayConnection, OnGatewayInit, OnGatewayDisconnect
 {

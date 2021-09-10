@@ -1,11 +1,11 @@
-import { Res, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Res, Injectable, UnauthorizedException, Req } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SignInDto } from 'src/users/dto/signin.dto';
 import { User } from 'src/users/user.entity';
 import { UserRepo } from 'src/users/users.repository';
 import * as bcrypt from 'bcrypt';
 import { SignUpDto } from 'src/users/dto/signup.dto';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
@@ -43,5 +43,23 @@ export class AuthService {
         expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
       })
       .send({ success: true, id: user.id, nickname: user.nickname });
+  }
+
+  signOut(@Req() req: Request, @Res() res: Response) {
+    const accessToken: string = req.cookies['accessToken'];
+    console.log('token: ', accessToken);
+    res
+      .cookie('accessToken', '', {
+        expires: new Date(Date.now()),
+      })
+      .send({ success: true });
+  }
+
+  checkLogin(@Req() req: Request) {
+    const accessToken: string = req.cookies['accessToken'];
+    if (accessToken == undefined || accessToken === '') {
+      return false;
+    }
+    return true;
   }
 }
