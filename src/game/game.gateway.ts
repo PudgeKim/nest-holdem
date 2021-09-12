@@ -1,4 +1,5 @@
 import {
+  ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -12,7 +13,7 @@ import { Server } from 'ws';
 import { Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 
-@WebSocketGateway({ namespace: 'holdem-room' })
+@WebSocketGateway({ namespace: 'holdem-room', cors: true })
 export class GameGateway
   implements OnGatewayConnection, OnGatewayInit, OnGatewayDisconnect
 {
@@ -25,13 +26,20 @@ export class GameGateway
   }
 
   @SubscribeMessage('joinRoom')
-  public joinRoom(client: Socket, @MessageBody() room: string): void {
+  public joinRoom(
+    @MessageBody() room: string,
+    @ConnectedSocket() client: Socket,
+  ): void {
     client.join(room);
     client.emit('joinedRoom', room);
+    console.log('joinRoom Method called');
   }
 
   @SubscribeMessage('leaveRoom')
-  public leaveRoom(client: Socket, @MessageBody() room: string): void {
+  public leaveRoom(
+    @MessageBody() room: string,
+    @ConnectedSocket() client: Socket,
+  ): void {
     client.leave(room);
     client.emit('leftRoom', room);
   }
@@ -40,11 +48,11 @@ export class GameGateway
     return this.logger.log('Init');
   }
 
-  public handleDisconnect(client: Socket): void {
+  public handleDisconnect(@ConnectedSocket() client: Socket): void {
     return this.logger.log(`Client disconnected: ${client.id}`);
   }
 
-  public handleConnection(client: Socket): void {
+  public handleConnection(@ConnectedSocket() client: Socket): void {
     return this.logger.log(`Client connected: ${client.id}`);
   }
 }
