@@ -35,15 +35,12 @@ export class GameGateway
 
   @SubscribeMessage('joinRoom')
   public async joinRoom(
-    @MessageBody() room: string,
+    @MessageBody() data: unknown,
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
-    const allRoomKeys: string[] = await this.redisClient.keys('*');
-    console.log('allroomKeys: ', allRoomKeys);
-    client.emit('joinedRoom', 'it is from server');
-
-    console.log('joinRoom method called clientID: ', client.id);
-    console.log('roomName: ', room);
+    console.log('data: ', data);
+    //const roomId: string = this.redisClient.hget()
+    //client.emit('joinRoom-' + room, )
   }
 
   // @SubscribeMessage('leaveRoom')

@@ -30,9 +30,11 @@ export class GameService {
     const allRooms = [];
 
     for (let i = 0; i < allRoomKeys.length; i++) {
-      const roomName = await this.client.hget(allRoomKeys[i], 'roomName');
+      const roomId = allRoomKeys[i];
+      const roomName = await this.client.hget(roomId, 'roomName');
       const hostNickname = await this.client.hget(allRoomKeys[i], 'host');
       allRooms.push({
+        roomId: roomId,
         roomName: roomName,
         host: hostNickname,
       });

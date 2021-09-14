@@ -48,6 +48,7 @@ export class AuthController {
     return this.authService.signOut(req, res);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get('check-login')
   checkLogin(@Req() req: Request) {
     return this.authService.checkLogin(req);

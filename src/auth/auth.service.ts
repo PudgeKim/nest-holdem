@@ -5,7 +5,7 @@ import { User } from 'src/users/user.entity';
 import { UserRepo } from 'src/users/users.repository';
 import * as bcrypt from 'bcrypt';
 import { SignUpDto } from 'src/users/dto/signup.dto';
-import { Request, Response } from 'express';
+import { json, Request, Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
@@ -60,11 +60,8 @@ export class AuthService {
       .send({ success: true });
   }
 
-  checkLogin(@Req() req: Request) {
-    const accessToken: string = req.cookies['accessToken'];
-    if (accessToken == undefined || accessToken === '') {
-      return false;
-    }
-    return true;
+  async checkLogin(@Req() req: Request) {
+    // because of guard we already check not logined user
+    return { user: req.user };
   }
 }
