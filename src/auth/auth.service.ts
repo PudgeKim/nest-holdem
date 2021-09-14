@@ -37,8 +37,7 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload);
 
     res
-      .cookie('accessToken', accessToken, {
-        httpOnly: true,
+      .cookie('accessToken', 'Bearer ' + accessToken, {
         // 1년
         expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
       })
@@ -51,7 +50,7 @@ export class AuthService {
   }
 
   signOut(@Req() req: Request, @Res() res: Response) {
-    const accessToken: string = req.cookies['accessToken'];
+    const accessToken: string = req.get('Authorization');
     console.log('token: ', accessToken);
     res
       .cookie('accessToken', '', {
