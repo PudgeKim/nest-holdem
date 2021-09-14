@@ -42,7 +42,12 @@ export class AuthService {
         // 1년
         expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
       })
-      .send({ success: true, id: user.id, nickname: user.nickname });
+      .send({
+        success: true,
+        id: user.id,
+        nickname: user.nickname,
+        money: user.money,
+      });
   }
 
   signOut(@Req() req: Request, @Res() res: Response) {

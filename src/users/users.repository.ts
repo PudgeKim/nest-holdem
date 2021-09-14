@@ -30,6 +30,7 @@ export class UserRepo extends Repository<User> {
       username,
       nickname,
       password: hashedPW,
+      money: 10000000,
     });
 
     try {
@@ -37,6 +38,7 @@ export class UserRepo extends Repository<User> {
       return {
         id: savedUser.id,
         nickname: savedUser.nickname,
+        money: savedUser.money,
       };
     } catch (error) {
       throw new InternalServerErrorException();
@@ -53,6 +55,7 @@ export class UserRepo extends Repository<User> {
       return {
         id: user.id,
         nickname: user.nickname,
+        money: user.money,
       };
     } catch (error) {
       throw new InternalServerErrorException();
