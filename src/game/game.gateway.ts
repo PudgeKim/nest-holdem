@@ -53,6 +53,7 @@ export class GameGateway
     return false;
   }
 
+  // test docker
   // @SubscribeMessage('leaveRoom')
   // public leaveRoom(
   //   @MessageBody() room: string,
