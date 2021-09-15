@@ -35,12 +35,22 @@ export class GameGateway
 
   @SubscribeMessage('joinRoom')
   public async joinRoom(
-    @MessageBody() data: unknown,
+    @MessageBody() data: any, // front에서 json으로 넘겨주니까 걍 object로 받음
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
-    console.log('data: ', data);
-    //const roomId: string = this.redisClient.hget()
-    //client.emit('joinRoom-' + room, )
+    let users: string = await this.redisClient.hget(data.roomId, 'users');
+    if (!this.checkUserExist(users, data.nickname)) {
+      // 중복방지를 위해 없는 경우에만 추가함
+      users += String(data.nickname) + '/'; //  /를 구분자로 현재 방에 있는 유저들을 저장함
+      this.redisClient.hmset(data.roomId, 'users', users);
+      console.log(await this.redisClient.hget(data.roomId, 'users'));
+    }
+  }
+
+  checkUserExist(users: string, newUser: string): boolean {
+    const userArr = users.split('/');
+    if (userArr.includes(newUser)) return true;
+    return false;
   }
 
   // @SubscribeMessage('leaveRoom')
