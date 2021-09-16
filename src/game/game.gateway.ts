@@ -57,8 +57,16 @@ export class GameGateway
       }
       await this.redisClient.hmset(data.roomId, 'users', users);
     }
-    console.log(await this.redisClient.hget(data.roomId, 'users'));
-    const usersInfo: PublicUser[] = await this.getUsersInfo(users);
+
+    const allUsers: PublicUser[] = await this.getUsersInfo(users);
+    const hostNickname: string = await this.redisClient.hget(
+      data.roomId,
+      'host',
+    );
+    const usersInfo = {
+      host: hostNickname,
+      allUsers: allUsers,
+    };
     client.emit('getUsersInfo', usersInfo);
   }
 
