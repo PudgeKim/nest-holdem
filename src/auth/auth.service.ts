@@ -5,7 +5,7 @@ import { User } from 'src/users/user.entity';
 import { UserRepo } from 'src/users/users.repository';
 import * as bcrypt from 'bcrypt';
 import { SignUpDto } from 'src/users/dto/signup.dto';
-import { json, Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()

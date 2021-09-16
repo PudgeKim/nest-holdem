@@ -14,7 +14,7 @@ export class GameService {
     const { userId, nickname, roomName } = createRoomDto;
     const roomId: string = v4();
 
-    this.client.hmset(
+    await this.client.hmset(
       roomId,
       'host',
       nickname,
