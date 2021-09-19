@@ -97,15 +97,51 @@ export class GameGateway
     return usersInfo;
   }
 
-  // test docker
-  // @SubscribeMessage('leaveRoom')
-  // public leaveRoom(
-  //   @MessageBody() room: string,
-  //   @ConnectedSocket() client: Socket,
-  // ): void {
-  //   client.leave(room);
-  //   client.emit('leftRoom', room);
-  // }
+  @SubscribeMessage('leaveRoom')
+  public async leaveRoom(
+    @MessageBody() data: any,
+    @ConnectedSocket() client: Socket,
+  ) {
+    let users = await this.redisClient.hget(data.roomId, 'users');
+    users = this.removeUser(data.nickname, users);
+    if (users == '') {
+      // 남은 유저가 없으면 방 제거
+      await this.redisClient.del(data.roomId);
+    } else {
+      const host: string = await this.redisClient.hget(data.roomId, 'host');
+      // 나간게 host라면 남아있는 사람들중에서 먼저 들어온사람이 host가 됨
+      if (data.nickname == host) {
+        const nextHost = users.split('/')[0];
+        await this.redisClient.hset(data.roomId, 'host', nextHost);
+      }
+
+      const allUsers = await this.getUsersInfo(users);
+      const hostNickname = await this.redisClient.hget(data.roomId, 'host');
+
+      const usersInfo = {
+        host: hostNickname,
+        allUsers: allUsers,
+      };
+
+      client.emit('getUsersInfo', usersInfo);
+    }
+  }
+
+  removeUser(removed: string, users: string): string {
+    let res = '';
+    const userArr = users.split('/');
+    for (let i = 0; i < userArr.length; i++) {
+      if (userArr[i] == removed) continue;
+
+      if (i == userArr.length - 1) {
+        res += userArr[i];
+      } else {
+        res += userArr[i] + '/';
+      }
+    }
+
+    return res;
+  }
 
   public afterInit(server: Server): void {
     return this.logger.log('Init');
