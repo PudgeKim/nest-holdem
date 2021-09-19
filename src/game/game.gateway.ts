@@ -67,7 +67,7 @@ export class GameGateway
       host: hostNickname,
       allUsers: allUsers,
     };
-    client.emit('getUsersInfo', usersInfo);
+    client.broadcast.emit('getUsersInfo', usersInfo);
   }
 
   checkUserExist(users: string, newUser: string): boolean {
@@ -123,7 +123,7 @@ export class GameGateway
         allUsers: allUsers,
       };
 
-      client.emit('getUsersInfo', usersInfo);
+      client.broadcast.emit('getUsersInfo', usersInfo);
     }
   }
 
