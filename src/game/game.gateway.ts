@@ -67,6 +67,7 @@ export class GameGateway
       host: hostNickname,
       allUsers: allUsers,
     };
+    console.log('joinRoom event check: ', usersInfo); ////////////
     client.broadcast.emit('getUsersInfo', usersInfo);
   }
 
@@ -79,6 +80,7 @@ export class GameGateway
   async getUsersInfo(users: string): Promise<PublicUser[]> {
     const userArr = users.split('/');
     const usersInfo: PublicUser[] = [];
+    console.log('userArr: ', userArr);
 
     await Promise.all(
       userArr.map(async (nickname) => {
@@ -122,7 +124,7 @@ export class GameGateway
         host: hostNickname,
         allUsers: allUsers,
       };
-
+      console.log('leaveRoom event check!'); //////////
       client.broadcast.emit('getUsersInfo', usersInfo);
     }
   }
@@ -131,7 +133,13 @@ export class GameGateway
     let res = '';
     const userArr = users.split('/');
     for (let i = 0; i < userArr.length; i++) {
-      if (userArr[i] == removed) continue;
+      if (userArr[i] == removed) {
+        if (i == userArr.length - 1) {
+          // 제거하려는 유저가 마지막에 있는 경우 그전 유저의 /가 남으므로 제거함
+          res = res.slice(0, res.length - 1);
+        }
+        continue;
+      }
 
       if (i == userArr.length - 1) {
         res += userArr[i];
