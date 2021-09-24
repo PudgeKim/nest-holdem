@@ -49,9 +49,58 @@ export type CardsWithRank = {
   rank: CardRank;
 };
 
-export function getCardsRank(cards: Card[]): CardsWithRank {
+// 7장의 카드로 가능한 모든 5장을 만들어냄
+// allCards = playerCards.allCards
+// tmpCards = 조합을 새로 만들기 위해 필요한 임시 배열
+// result = 모든 조합들이 들어가는 배열
+export function makeAllCombinations(
+  allCards: Card[],
+  tmpCards: Card[],
+  result: CardsWithRank[],
+  lv: number,
+  startIdx: number,
+) {
+  if (lv == 5) {
+    // copy를 안해주면 같은 포인터를 가리키기 때문에 tmpCards는 결국 빈 배열이 됨
+    const copied = Object.assign([], tmpCards);
+    const cardsWithRank = getCardsWithRank(copied);
+    result.push(cardsWithRank);
+  }
+
+  for (let i = startIdx; i < 7; i += 1) {
+    tmpCards.push(allCards[i]);
+    makeAllCombinations(allCards, tmpCards, result, lv + 1, i + 1);
+    tmpCards.pop();
+  }
+}
+
+// 위에서 구한 result에 들어있는 것들 중 가장 높은 족보인걸 가져옴
+export function getHighestCardsWithRank(
+  cardsWithRankArr: CardsWithRank[],
+): CardsWithRank {
+  const sortedCards = cardsWithRankArr.sort((a, b) => {
+    // 우선 rank별로 비교해봄
+    // 예를 들어 fullHouse와 onePair라면 fullHouse가 무조건 높기 때문에 바로 return함
+    if (a.rank > b.rank) return 1;
+    if (a.rank < b.rank) return -1;
+
+    // rank가 같다면 더 높은 숫자를 가지고 있는걸 알아냄
+    // 카드들은 이미 오름차순 정렬되어 있음
+    for (let i = 4; i > -1; i -= 1) {
+      if (a.cards[i].num == b.cards[i].num) continue;
+
+      if (a.cards[i].num > b.cards[i].num) return 1;
+      else return -1;
+    }
+    return 0;
+  });
+
+  return sortedCards[sortedCards.length - 1];
+}
+
+function getCardsWithRank(cards: Card[]): CardsWithRank {
   if (cards.length != 5) {
-    throw new Error('getCardRank error: card length is not 5');
+    throw new Error('getCardRank error: length of the cards is not 5');
   }
 
   // 아래 족보 검사 함수들은 오름차순 정렬이 되어있다고 가정하고 만들어진 함수들임

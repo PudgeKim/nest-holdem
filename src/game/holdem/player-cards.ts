@@ -117,3 +117,30 @@ export class PlayerCards {
     return copied;
   }
 }
+
+export function comparePlayerCards(p1: PlayerCards, p2: PlayerCards) {
+  const p1Rank = p1.getRankInfo().rank;
+  const p2Rank = p2.getRankInfo().rank;
+
+  if (p1Rank > p2Rank) {
+    return 1;
+  }
+
+  if (p1Rank < p2Rank) {
+    return -1;
+  }
+
+  // rank가 같은 경우
+  const p1SubRank = p1.getRankInfo().subRank;
+  const p2SubRank = p2.getRankInfo().subRank;
+
+  // 두 플레이어들의 카드를 하나씩 비교해봄
+  for (const seqKey in p1SubRank) {
+    if (p1SubRank[seqKey] == p2SubRank[seqKey]) continue;
+
+    if (p1SubRank[seqKey] > p2SubRank[seqKey]) return 1;
+    else return -1;
+  }
+
+  return 0; // 무승부
+}
