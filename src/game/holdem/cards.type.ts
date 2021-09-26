@@ -49,6 +49,16 @@ export type CardsWithRank = {
   rank: CardRank;
 };
 
+// 필드와 플레이어카드를 합쳐서 가장 높은 족보를 얻어냄
+export function getHighestCards(playerCards: Card[]): CardsWithRank {
+  const allCombinations: CardsWithRank[] = [];
+  makeAllCombinations(playerCards, [], allCombinations, 0, 0);
+  const highestCards: CardsWithRank =
+    getHighestCardsWithRankFromCombinations(allCombinations);
+
+  return highestCards;
+}
+
 // 7장의 카드로 가능한 모든 5장을 만들어냄
 // allCards = playerCards.allCards
 // tmpCards = 조합을 새로 만들기 위해 필요한 임시 배열
@@ -75,7 +85,7 @@ export function makeAllCombinations(
 }
 
 // 위에서 구한 result에 들어있는 것들 중 가장 높은 족보인걸 가져옴
-export function getHighestCardsWithRank(
+export function getHighestCardsWithRankFromCombinations(
   cardsWithRankArr: CardsWithRank[],
 ): CardsWithRank {
   const sortedCards = cardsWithRankArr.sort((a, b) => {

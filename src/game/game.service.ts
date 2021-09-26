@@ -14,6 +14,8 @@ export class GameService {
     const { userId, nickname, roomName } = createRoomDto;
     const roomId: string = v4();
 
+    // sb = small blind index
+    // bb = big blind index
     await this.client.hmset(
       roomId,
       'host',
@@ -22,6 +24,10 @@ export class GameService {
       roomName,
       'users',
       '',
+      'sb',
+      0,
+      'bb',
+      1,
     );
 
     return {
