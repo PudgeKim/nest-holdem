@@ -50,6 +50,7 @@ export class GameGateway
     const roomId: string = data.roomId;
     const nickname: string = data.nickname;
 
+    client.join(roomId);
     await this.redisClient.hset(roomId, nickname, client.id); // 각 닉네임별로 socketId 저장
 
     let users: string = await this.redisClient.hget(data.roomId, 'users');
@@ -74,7 +75,7 @@ export class GameGateway
       allUsers: allUsers,
     };
     console.log('joinRoom event check: ', usersInfo); ////////////
-    client.broadcast.emit('getUsersInfo', usersInfo);
+    client.to(roomId).emit('getUsersInfo', usersInfo);
   }
 
   checkUserExist(users: string, newUser: string): boolean {
@@ -133,7 +134,7 @@ export class GameGateway
       };
 
       console.log('leaveRoom event check!'); //////////
-      client.broadcast.emit('getUsersInfo', usersInfo);
+      client.to(roomId).emit('getUsersInfo', usersInfo);
     }
   }
 
@@ -200,15 +201,51 @@ export class GameGateway
     // 남은 덱에서 필드에 쓰일 5장은 redis에 저장해놓음
     let cards = '';
     for (let i = 0; i < 5; i++) {
-      const card = deck.pop();
+      const card: Card = deck.pop();
+      const cardString = card.symbol + String(card.num); // redis에 저장하기 위해 string으로 바꿈
       if (i == 4) {
-        cards += card;
+        cards += cardString;
       } else {
-        cards += card + '/';
+        cards += cardString + '/';
       }
     }
 
     await this.redisClient.hset(roomId, 'cards', cards);
+    const testCards: string = await this.redisClient.hget(roomId, 'cards'); ///////
+    console.log(testCards); ///////
+    console.log('startGame roomId: ', roomId);
+  }
+
+  // 플랍, 턴, 리버에 쓰일 카드 가져옴
+  @SubscribeMessage('getCardFromDeck')
+  public async getCardFromDeck(
+    @MessageBody() data: any, // roomId, order (flop, turn ,river)
+    @ConnectedSocket() client: Socket,
+  ) {
+    const roomId: string = data.roomId;
+    const order: string = data.order;
+    const cards = await this.redisClient.hget(roomId, 'cards');
+    console.log('getDeck roomId: ', roomId);
+    console.log('getDeck cards: ', cards); ////////
+    const cardInfo = {};
+    if (order == 'flop') {
+      const cardArr = cards.split('/');
+      cardInfo['cards'] = [cardArr[0], cardArr[1], cardArr[2]];
+
+      const remCards = cardArr[3] + '/' + cardArr[4];
+      await this.redisClient.hset(roomId, 'cards', remCards);
+    } else if (order == 'turn') {
+      const cardArr = cards.split('/');
+      cardInfo['cards'] = [cardArr[0]];
+
+      const remCards = cardArr[1];
+      await this.redisClient.hset(roomId, 'cards', remCards);
+    } else if (order == 'river') {
+      cardInfo['cards'] = [cards];
+      await this.redisClient.hset(roomId, 'cards', '');
+    }
+
+    client.to(roomId).emit('getCardFromDeck', cardInfo);
   }
 
   public afterInit(server: Server): void {
