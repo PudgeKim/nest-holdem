@@ -48,7 +48,16 @@ export class GameGateway
     @MessageBody('nickname') nickname: string,
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
+    // room별로 관리하기 위해
     client.join(roomId);
+
+    // handleDisconnection에서 어떤 socketId가 어떤 room에서 끊어졌는지 확인해야되기 때문
+    const socketInfo = {
+      roomId: roomId,
+      nickname: nickname,
+    };
+    const socketInfoString = JSON.stringify(socketInfo);
+    await this.redisClient.hset('sockets', client.id, socketInfoString);
 
     const user = await this.userRepository.findOne({ nickname });
     const userInfo = {
@@ -58,7 +67,6 @@ export class GameGateway
 
     const userInfoString = JSON.stringify(userInfo);
     await this.redisClient.hset(roomId, nickname, userInfoString);
-    //await this.redisClient.hset(roomId, nickname, client.id); // 각 닉네임별로 socketId 저장
 
     let users: string = await this.redisClient.hget(roomId, 'users');
     // 중복방지를 위해 없는 경우에만 추가함
@@ -116,20 +124,22 @@ export class GameGateway
     @MessageBody('nickname') nickname: string,
     @ConnectedSocket() client: Socket,
   ) {
-    let users = await this.redisClient.hget(roomId, 'users');
-    users = this.removeUser(nickname, users);
-    if (users == '') {
+    const users = await this.redisClient.hget(roomId, 'users');
+    const remainingUsers = this.removeUser(nickname, users);
+    if (remainingUsers == '') {
       // 남은 유저가 없으면 방 제거
       await this.redisClient.del(roomId);
     } else {
+      await this.redisClient.hset(roomId, 'users', remainingUsers);
       const host: string = await this.redisClient.hget(roomId, 'host');
       // 나간게 host라면 남아있는 사람들중에서 먼저 들어온사람이 host가 됨
       if (nickname == host) {
-        const nextHost = users.split('/')[0];
+        const nextHost = remainingUsers.split('/')[0];
         await this.redisClient.hset(roomId, 'host', nextHost);
       }
 
-      const allUsers = await this.getUsersInfo(users);
+      // 아래 로직 필요한가 ?
+      const allUsers = await this.getUsersInfo(remainingUsers);
       const hostNickname = await this.redisClient.hget(roomId, 'host');
 
       const usersInfo = {
@@ -268,8 +278,43 @@ export class GameGateway
     return this.logger.log('Init');
   }
 
-  public handleDisconnect(@ConnectedSocket() client: Socket): void {
-    return this.logger.log(`Client disconnected: ${client.id}`);
+  public async handleDisconnect(
+    @ConnectedSocket() client: Socket,
+  ): Promise<void> {
+    // joinRoom에서 key=socketId, value={roomId, nickname}으로 저장해 놓음
+    const socketInfoString: string = await this.redisClient.hget(
+      'sockets',
+      client.id,
+    );
+    const socketInfo = JSON.parse(socketInfoString);
+    console.log('handleDisconnection socketINfo: ', socketInfo); ////
+    const { roomId, nickname } = socketInfo;
+
+    // disconnected된 client 제거
+    await this.redisClient.hdel('sockets', client.id);
+
+    const users = await this.redisClient.hget(roomId, 'users');
+    const remainingUsers = this.removeUser(nickname, users);
+
+    if (remainingUsers == '') {
+      // 남은 유저가 없으면 방 제거
+      await this.redisClient.del(roomId);
+    } else {
+      // 나간 유저 제거하고 남아있는 유저들로 업데이트
+      await this.redisClient.hset(roomId, 'users', remainingUsers);
+      const host: string = await this.redisClient.hget(roomId, 'host');
+      // 나간게 host라면 남아있는 사람들중에서 먼저 들어온사람이 host가 됨
+      if (nickname == host) {
+        const nextHost = remainingUsers.split('/')[0];
+        await this.redisClient.hset(roomId, 'host', nextHost);
+      }
+    }
+
+    console.log(
+      'handleDisconnect allUsers: ',
+      await this.redisClient.hget(roomId, 'users'),
+    ); ////////
+    return this.logger.log(`${nickname} is disconnected`);
   }
 
   public handleConnection(@ConnectedSocket() client: Socket): void {
