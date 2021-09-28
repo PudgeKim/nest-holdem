@@ -34,42 +34,46 @@ export class GameGateway
     this.redisClient = redisService.getClient();
   }
 
-  @SubscribeMessage('msgToServer')
-  public handleMessage(
-    @ConnectedSocket() client: Socket,
-    payload: any,
-  ): Promise<WsResponse<any>> {
-    return this.server.to(payload.room).emit('msgToClient', payload);
-  }
+  // @SubscribeMessage('msgToServer')
+  // public handleMessage(
+  //   @ConnectedSocket() client: Socket,
+  //   payload: any,
+  // ): Promise<WsResponse<any>> {
+  //   return this.server.to(payload.room).emit('msgToClient', payload);
+  // }
 
   @SubscribeMessage('joinRoom')
   public async joinRoom(
-    @MessageBody() data: any, // front에서 json으로 넘겨주니까 걍 object로 받음
+    @MessageBody('roomId') roomId: string,
+    @MessageBody('nickname') nickname: string,
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
-    const roomId: string = data.roomId;
-    const nickname: string = data.nickname;
-
     client.join(roomId);
-    await this.redisClient.hset(roomId, nickname, client.id); // 각 닉네임별로 socketId 저장
 
-    let users: string = await this.redisClient.hget(data.roomId, 'users');
-    if (!this.checkUserExist(users, data.nickname)) {
-      // 중복방지를 위해 없는 경우에만 추가함
+    const user = await this.userRepository.findOne({ nickname });
+    const userInfo = {
+      money: user.money,
+      socketId: client.id,
+    };
+
+    const userInfoString = JSON.stringify(userInfo);
+    await this.redisClient.hset(roomId, nickname, userInfoString);
+    //await this.redisClient.hset(roomId, nickname, client.id); // 각 닉네임별로 socketId 저장
+
+    let users: string = await this.redisClient.hget(roomId, 'users');
+    // 중복방지를 위해 없는 경우에만 추가함
+    if (!this.checkUserExist(users, nickname)) {
+      // 처음 유저는 / 없이 저장
       if (users == '') {
-        // 처음 유저는 / 없이 저장
-        users += String(data.nickname);
+        users += String(nickname);
       } else {
-        users += '/' + String(data.nickname); //  /를 구분자로 현재 방에 있는 유저들을 저장함
+        users += '/' + String(nickname); //  /를 구분자로 현재 방에 있는 유저들을 저장함
       }
-      await this.redisClient.hmset(data.roomId, 'users', users);
+      await this.redisClient.hmset(roomId, 'users', users);
     }
 
     const allUsers: PublicUser[] = await this.getUsersInfo(users);
-    const hostNickname: string = await this.redisClient.hget(
-      data.roomId,
-      'host',
-    );
+    const hostNickname: string = await this.redisClient.hget(roomId, 'host');
     const usersInfo = {
       host: hostNickname,
       allUsers: allUsers,
@@ -108,19 +112,19 @@ export class GameGateway
 
   @SubscribeMessage('leaveRoom')
   public async leaveRoom(
-    @MessageBody() data: any,
+    @MessageBody('roomId') roomId: string,
+    @MessageBody('nickname') nickname: string,
     @ConnectedSocket() client: Socket,
   ) {
-    const roomId: string = data.roomId;
     let users = await this.redisClient.hget(roomId, 'users');
-    users = this.removeUser(data.nickname, users);
+    users = this.removeUser(nickname, users);
     if (users == '') {
       // 남은 유저가 없으면 방 제거
       await this.redisClient.del(roomId);
     } else {
       const host: string = await this.redisClient.hget(roomId, 'host');
       // 나간게 host라면 남아있는 사람들중에서 먼저 들어온사람이 host가 됨
-      if (data.nickname == host) {
+      if (nickname == host) {
         const nextHost = users.split('/')[0];
         await this.redisClient.hset(roomId, 'host', nextHost);
       }
@@ -160,6 +164,8 @@ export class GameGateway
     return res;
   }
 
+  // 덱을 새로 만들고 셔플하며
+  // 각 플레이어들에게 카드를 2장씩 나눠주고 총 베팅금을 0으로 초기화 시킴
   @SubscribeMessage('startGame')
   public async startGame(
     @MessageBody() data: any, // roomId
@@ -180,7 +186,12 @@ export class GameGateway
     console.log('startGame event check: ', userArr); //////
     await Promise.all(
       userArr.map(async (nickname) => {
-        const socketId: string = await this.redisClient.hget(roomId, nickname);
+        //const socketId: string = await this.redisClient.hget(roomId, nickname);
+        const userInfoString = await this.redisClient.hget(roomId, nickname);
+        const userInfo = JSON.parse(userInfoString);
+        console.log('startGame userInfo: ', userInfo);
+        const socketId = userInfo.socketId;
+
         const card1 = deck.pop();
         const card2 = deck.pop();
 
@@ -211,9 +222,6 @@ export class GameGateway
     }
 
     await this.redisClient.hset(roomId, 'cards', cards);
-    const testCards: string = await this.redisClient.hget(roomId, 'cards'); ///////
-    console.log(testCards); ///////
-    console.log('startGame roomId: ', roomId);
   }
 
   // 플랍, 턴, 리버에 쓰일 카드 가져옴
@@ -225,7 +233,6 @@ export class GameGateway
     const roomId: string = data.roomId;
     const order: string = data.order;
     const cards = await this.redisClient.hget(roomId, 'cards');
-    console.log('getDeck roomId: ', roomId);
     console.log('getDeck cards: ', cards); ////////
     const cardInfo = {};
     if (order == 'flop') {
@@ -247,6 +254,15 @@ export class GameGateway
 
     client.to(roomId).emit('getCardFromDeck', cardInfo);
   }
+
+  // @SubscribeMessage('betting')
+  // public async betting(
+  //   @MessageBody('roomId') roomId: string,
+  //   @MessageBody('nickname') nickname: string,
+  //   @MessageBody('money') money: number,
+  //   @MessageBody('betMoney') betMoney: number, // 베팅한 금액
+  //   @ConnectedSocket() client: Socket,
+  // ) {}
 
   public afterInit(server: Server): void {
     return this.logger.log('Init');
