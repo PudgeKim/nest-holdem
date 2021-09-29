@@ -7,7 +7,6 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
-  WsResponse,
 } from '@nestjs/websockets';
 import { Server } from 'ws';
 import { Socket } from 'socket.io';
@@ -64,7 +63,7 @@ export class GameGateway
       money: user.money,
       socketId: client.id,
     };
-
+    // key=nickname, value={money, socketId}
     const userInfoString = JSON.stringify(userInfo);
     await this.redisClient.hset(roomId, nickname, userInfoString);
 
@@ -178,11 +177,9 @@ export class GameGateway
   // 각 플레이어들에게 카드를 2장씩 나눠주고 총 베팅금을 0으로 초기화 시킴
   @SubscribeMessage('startGame')
   public async startGame(
-    @MessageBody() data: any, // roomId
+    @MessageBody('roomId') roomId: string,
     @ConnectedSocket() client: Socket,
   ) {
-    const roomId: string = data.roomId;
-
     const sbIdx: number = await this.redisClient.hget(roomId, 'sb');
     const bbIdx: number = await this.redisClient.hget(roomId, 'bb');
 
@@ -196,7 +193,8 @@ export class GameGateway
     console.log('startGame event check: ', userArr); //////
     await Promise.all(
       userArr.map(async (nickname) => {
-        //const socketId: string = await this.redisClient.hget(roomId, nickname);
+        // 새 게임이 시작됬으니 각 플레이어의 베팅금액 0으로 초기화
+        await this.redisClient.hset(roomId, nickname, 'betMoney', 0);
         const userInfoString = await this.redisClient.hget(roomId, nickname);
         const userInfo = JSON.parse(userInfoString);
         console.log('startGame userInfo: ', userInfo);
@@ -232,6 +230,8 @@ export class GameGateway
     }
 
     await this.redisClient.hset(roomId, 'cards', cards);
+    // 새로운 게임이 시작됬으니 총 베팅금은 0원으로 초기화
+    await this.redisClient.hset(roomId, 'totalBet', 0);
   }
 
   // 플랍, 턴, 리버에 쓰일 카드 가져옴
@@ -265,14 +265,27 @@ export class GameGateway
     client.to(roomId).emit('getCardFromDeck', cardInfo);
   }
 
-  // @SubscribeMessage('betting')
-  // public async betting(
-  //   @MessageBody('roomId') roomId: string,
-  //   @MessageBody('nickname') nickname: string,
-  //   @MessageBody('money') money: number,
-  //   @MessageBody('betMoney') betMoney: number, // 베팅한 금액
-  //   @ConnectedSocket() client: Socket,
-  // ) {}
+  @SubscribeMessage('betting')
+  public async betting(
+    @MessageBody('roomId') roomId: string,
+    @MessageBody('nickname') nickname: string,
+    @MessageBody('money') money: number,
+    @MessageBody('betMoney') betMoney: number, // 베팅한 금액
+    @ConnectedSocket() client: Socket,
+  ) {
+    const playerInfoString = await this.redisClient.hget(roomId, nickname);
+    const playerInfo = JSON.parse(playerInfoString);
+    playerInfo.betMoney += betMoney;
+    playerInfo.money -= betMoney;
+
+    let totalBet = await this.redisClient.hget(roomId, 'totalBet');
+    totalBet += betMoney;
+    await this.redisClient.hset(roomId, 'totalBet', totalBet);
+    console.log(
+      'betting totalBet: ',
+      await this.redisClient.hget(roomId, 'totalBet'),
+    ); //////////
+  }
 
   public afterInit(server: Server): void {
     return this.logger.log('Init');
