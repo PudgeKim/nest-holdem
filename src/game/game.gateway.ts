@@ -48,7 +48,7 @@ export class GameGateway
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
     // room별로 관리하기 위해
-    client.join(roomId);
+    await client.join(roomId);
 
     // handleDisconnection에서 어떤 socketId가 어떤 room에서 끊어졌는지 확인해야되기 때문
     const socketInfo = {
@@ -86,7 +86,8 @@ export class GameGateway
       allUsers: allUsers,
     };
     console.log('joinRoom event check: ', usersInfo); ////////////
-    client.to(roomId).emit('getUsersInfo', usersInfo);
+    // to send all users in the room
+    this.server.in(roomId).emit('getUsersInfo', usersInfo);
   }
 
   checkUserExist(users: string, newUser: string): boolean {
@@ -147,7 +148,9 @@ export class GameGateway
       };
 
       console.log('leaveRoom event check!'); //////////
+      // to send all users except sender
       client.to(roomId).emit('getUsersInfo', usersInfo);
+      await client.leave(roomId);
     }
   }
 
@@ -213,7 +216,7 @@ export class GameGateway
         if (nickname == sbPlayerNickname) cardsInfo.sb = true;
         if (nickname == bbPlayerNickname) cardsInfo.bb = true;
         console.log('card1: ', card1, 'card2: ', card2); //////
-        this.server.to(socketId).emit('getFirstCards', cardsInfo);
+        this.server.in(socketId).emit('getFirstCards', cardsInfo);
       }),
     );
 
@@ -262,7 +265,7 @@ export class GameGateway
       await this.redisClient.hset(roomId, 'cards', '');
     }
 
-    client.to(roomId).emit('getCardFromDeck', cardInfo);
+    client.in(roomId).emit('getCardFromDeck', cardInfo);
   }
 
   @SubscribeMessage('betting')
