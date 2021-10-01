@@ -34,14 +34,6 @@ export class GameGateway
     this.redisClient = redisService.getClient();
   }
 
-  // @SubscribeMessage('msgToServer')
-  // public handleMessage(
-  //   @ConnectedSocket() client: Socket,
-  //   payload: any,
-  // ): Promise<WsResponse<any>> {
-  //   return this.server.to(payload.room).emit('msgToClient', payload);
-  // }
-
   @SubscribeMessage('joinRoom')
   public async joinRoom(
     @MessageBody('roomId') roomId: string,
@@ -132,12 +124,15 @@ export class GameGateway
       roomId,
       nickname,
     );
-    const userInfo: GameUserInfo = JSON.parse(userInfoString);
+    const userInfo = JSON.parse(userInfoString);
     userInfo.isParticipated = true;
 
     await this.redisClient.hset(roomId, nickname, userInfo);
 
-    this.server.in(roomId).emit('getParticipant', userInfo);
+    this.server.in(roomId).emit('getParticipant', {
+      nickname: userInfo.nickname,
+      isParticipated: userInfo.isParticipated,
+    });
   }
 
   @SubscribeMessage('leaveRoom')
