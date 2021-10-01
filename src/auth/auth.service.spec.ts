@@ -30,6 +30,7 @@ const MockUserRepository = {
       const publicUser: PublicUser = {
         id: 1,
         nickname: nickname,
+        money: 10000000,
       };
 
       return Promise.resolve(publicUser);

@@ -17,6 +17,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/user.entity';
 import { initDeck } from './holdem/deck';
 import { Card } from './holdem/cards.type';
+import { GameUserInfo } from './game-user.type';
 
 @WebSocketGateway({ namespace: 'holdem-room', cors: true })
 export class GameGateway
@@ -59,9 +60,12 @@ export class GameGateway
     await this.redisClient.hset('sockets', client.id, socketInfoString);
 
     const user = await this.userRepository.findOne({ nickname });
-    const userInfo = {
-      money: user.money,
+    const userInfo: GameUserInfo = {
       socketId: client.id,
+      money: user.money,
+      isParticipated: false,
+      betMoney: 0,
+      isDead: false,
     };
     // key=nickname, value={money, socketId}
     const userInfoString = JSON.stringify(userInfo);
@@ -76,7 +80,7 @@ export class GameGateway
       } else {
         users += '/' + String(nickname); //  /를 구분자로 현재 방에 있는 유저들을 저장함
       }
-      await this.redisClient.hmset(roomId, 'users', users);
+      await this.redisClient.hset(roomId, 'users', users);
     }
 
     const allUsers: PublicUser[] = await this.getUsersInfo(users);
@@ -118,6 +122,24 @@ export class GameGateway
     return usersInfo;
   }
 
+  @SubscribeMessage('participateGame')
+  public async participateGame(
+    @MessageBody('roomId') roomId: string,
+    @MessageBody('nickname') nickname: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    const userInfoString: string = await this.redisClient.hget(
+      roomId,
+      nickname,
+    );
+    const userInfo: GameUserInfo = JSON.parse(userInfoString);
+    userInfo.isParticipated = true;
+
+    await this.redisClient.hset(roomId, nickname, userInfo);
+
+    this.server.in(roomId).emit('getParticipant', userInfo);
+  }
+
   @SubscribeMessage('leaveRoom')
   public async leaveRoom(
     @MessageBody('roomId') roomId: string,
@@ -126,9 +148,11 @@ export class GameGateway
   ) {
     const users = await this.redisClient.hget(roomId, 'users');
     const remainingUsers = this.removeUser(nickname, users);
+    console.log('leaveRoom remainingUsers: ', remainingUsers); ///////////
     if (remainingUsers == '') {
       // 남은 유저가 없으면 방 제거
       await this.redisClient.del(roomId);
+      console.log('check delete room: ', await this.redisClient.get(roomId)); ///////
     } else {
       await this.redisClient.hset(roomId, 'users', remainingUsers);
       const host: string = await this.redisClient.hget(roomId, 'host');
@@ -150,7 +174,7 @@ export class GameGateway
       console.log('leaveRoom event check!'); //////////
       // to send all users except sender
       client.to(roomId).emit('getUsersInfo', usersInfo);
-      await client.leave(roomId);
+      await client.leave(roomId); // 이건 필요함
     }
   }
 
@@ -197,10 +221,12 @@ export class GameGateway
     await Promise.all(
       userArr.map(async (nickname) => {
         // 새 게임이 시작됬으니 각 플레이어의 베팅금액 0으로 초기화
-        await this.redisClient.hset(roomId, nickname, 'betMoney', 0);
         const userInfoString = await this.redisClient.hget(roomId, nickname);
         const userInfo = JSON.parse(userInfoString);
-        console.log('startGame userInfo: ', userInfo);
+        userInfo.betMoney = 0;
+        await this.redisClient.hset(roomId, nickname, userInfo);
+
+        console.log('startGame userInfo: ', userInfo); ////
         const socketId = userInfo.socketId;
 
         const card1 = deck.pop();
@@ -311,10 +337,14 @@ export class GameGateway
 
     const users = await this.redisClient.hget(roomId, 'users');
     const remainingUsers = this.removeUser(nickname, users);
-
+    console.log('handleDisconnection remainingUsers: ', remainingUsers); /////
     if (remainingUsers == '') {
       // 남은 유저가 없으면 방 제거
       await this.redisClient.del(roomId);
+      console.log(
+        'handleDisconnection delete room: ',
+        await this.redisClient.get(roomId),
+      ); //////
     } else {
       // 나간 유저 제거하고 남아있는 유저들로 업데이트
       await this.redisClient.hset(roomId, 'users', remainingUsers);

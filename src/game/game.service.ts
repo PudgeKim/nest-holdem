@@ -44,7 +44,7 @@ export class GameService {
     const allRooms = [];
 
     for (let i = 0; i < allRoomKeys.length; i++) {
-      // sockets key는 socketㅑㅇ
+      // sockets key는 socketId
       if (allRoomKeys[i] == 'sockets') continue;
 
       const roomId = allRoomKeys[i];
