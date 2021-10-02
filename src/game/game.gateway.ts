@@ -197,11 +197,25 @@ export class GameGateway
 
   // 덱을 새로 만들고 셔플하며
   // 각 플레이어들에게 카드를 2장씩 나눠주고 총 베팅금을 0으로 초기화 시킴
+  // (참가 버튼을 누른 플레이어들에게만)
   @SubscribeMessage('startGame')
   public async startGame(
     @MessageBody('roomId') roomId: string,
     @ConnectedSocket() client: Socket,
   ) {
+    const participantCnt: number = await this.redisClient.hget(
+      roomId,
+      'participantCnt',
+    );
+    // 참가자가 최소 2명이상 있어야 게임시작
+    if (participantCnt < 2) {
+      client.emit('cannotStart', {
+        success: false,
+        message: 'participant should be equal or more than two',
+      });
+      return;
+    }
+
     const sbIdx: number = await this.redisClient.hget(roomId, 'sb');
     const bbIdx: number = await this.redisClient.hget(roomId, 'bb');
 
@@ -218,26 +232,30 @@ export class GameGateway
         // 새 게임이 시작됬으니 각 플레이어의 베팅금액 0으로 초기화
         const userInfoString = await this.redisClient.hget(roomId, nickname);
         const userInfo = JSON.parse(userInfoString);
-        userInfo.betMoney = 0;
-        await this.redisClient.hset(roomId, nickname, userInfo);
 
-        console.log('startGame userInfo: ', userInfo); ////
-        const socketId = userInfo.socketId;
+        // 참가 버튼 누른 사람들만
+        if (userInfo.isParticipated) {
+          userInfo.betMoney = 0;
+          await this.redisClient.hset(roomId, nickname, userInfo);
 
-        const card1 = deck.pop();
-        const card2 = deck.pop();
+          console.log('startGame userInfo: ', userInfo); ////
+          const socketId = userInfo.socketId;
 
-        const cardsInfo = {
-          card1,
-          card2,
-          sb: false,
-          bb: false,
-        };
+          const card1 = deck.pop();
+          const card2 = deck.pop();
 
-        if (nickname == sbPlayerNickname) cardsInfo.sb = true;
-        if (nickname == bbPlayerNickname) cardsInfo.bb = true;
-        console.log('card1: ', card1, 'card2: ', card2); //////
-        this.server.in(socketId).emit('getFirstCards', cardsInfo);
+          const cardsInfo = {
+            card1,
+            card2,
+            sb: false,
+            bb: false,
+          };
+
+          if (nickname == sbPlayerNickname) cardsInfo.sb = true;
+          if (nickname == bbPlayerNickname) cardsInfo.bb = true;
+          console.log('card1: ', card1, 'card2: ', card2); //////
+          this.server.in(socketId).emit('getFirstCards', cardsInfo);
+        }
       }),
     );
 
@@ -252,8 +270,8 @@ export class GameGateway
         cards += cardString + '/';
       }
     }
-
     await this.redisClient.hset(roomId, 'cards', cards);
+
     // 새로운 게임이 시작됬으니 총 베팅금은 0원으로 초기화
     await this.redisClient.hset(roomId, 'totalBet', 0);
   }

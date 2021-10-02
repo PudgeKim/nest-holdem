@@ -24,6 +24,8 @@ export class GameService {
       roomName,
       'users',
       '',
+      'participantCnt',
+      0,
       'sb',
       0,
       'bb',
