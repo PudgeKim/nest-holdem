@@ -17,7 +17,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/user.entity';
 import { initDeck } from './holdem/deck';
 import { Card } from './holdem/cards.type';
-import { GameUserInfo } from './game-user.type';
+import {
+  GameUserInfo,
+  IncreaseOrDecrease,
+  SocketInfo,
+} from './game.helper.type';
 
 @WebSocketGateway({ namespace: 'holdem-room', cors: true })
 export class GameGateway
@@ -86,51 +90,25 @@ export class GameGateway
     this.server.in(roomId).emit('getUsersInfo', usersInfo);
   }
 
-  checkUserExist(users: string, newUser: string): boolean {
-    const userArr = users.split('/');
-    if (userArr.includes(newUser)) return true;
-    return false;
-  }
-
-  async getUsersInfo(users: string): Promise<PublicUser[]> {
-    const userArr = users.split('/');
-    const usersInfo: PublicUser[] = [];
-    console.log('userArr: ', userArr);
-
-    await Promise.all(
-      userArr.map(async (nickname) => {
-        const user: User = await this.userRepository.findOne({
-          nickname: nickname,
-        });
-
-        usersInfo.push({
-          id: user.id,
-          nickname: user.nickname,
-          money: user.money,
-        });
-      }),
-    );
-
-    return usersInfo;
-  }
-
   @SubscribeMessage('participateGame')
   public async participateGame(
     @MessageBody('roomId') roomId: string,
     @MessageBody('nickname') nickname: string,
     @ConnectedSocket() client: Socket,
   ) {
-    const userInfoString: string = await this.redisClient.hget(
+    const userInfo: GameUserInfo = await this.getUserInfoFromRedis(
       roomId,
       nickname,
     );
-    const userInfo = JSON.parse(userInfoString);
     userInfo.isParticipated = true;
 
     await this.redisClient.hset(roomId, nickname, userInfo);
 
+    // 참가자수 1 증가
+    this.calculateParticipant(roomId, 'INCREASE');
+
     this.server.in(roomId).emit('getParticipant', {
-      nickname: userInfo.nickname,
+      nickname: nickname,
       isParticipated: userInfo.isParticipated,
     });
   }
@@ -141,6 +119,15 @@ export class GameGateway
     @MessageBody('nickname') nickname: string,
     @ConnectedSocket() client: Socket,
   ) {
+    const userInfo: GameUserInfo = await this.getUserInfoFromRedis(
+      roomId,
+      nickname,
+    );
+    // 참가버튼을 누른 유저였다면 참가자 수 1 감소
+    if (userInfo.isParticipated) {
+      this.calculateParticipant(roomId, 'DECREASE');
+    }
+
     const users = await this.redisClient.hget(roomId, 'users');
     const remainingUsers = this.removeUser(nickname, users);
     console.log('leaveRoom remainingUsers: ', remainingUsers); ///////////
@@ -171,28 +158,6 @@ export class GameGateway
       client.to(roomId).emit('getUsersInfo', usersInfo);
       await client.leave(roomId); // 이건 필요함
     }
-  }
-
-  removeUser(removed: string, users: string): string {
-    let res = '';
-    const userArr = users.split('/');
-    for (let i = 0; i < userArr.length; i++) {
-      if (userArr[i] == removed) {
-        if (i == userArr.length - 1) {
-          // 제거하려는 유저가 마지막에 있는 경우 그전 유저의 /가 남으므로 제거함
-          res = res.slice(0, res.length - 1);
-        }
-        continue;
-      }
-
-      if (i == userArr.length - 1) {
-        res += userArr[i];
-      } else {
-        res += userArr[i] + '/';
-      }
-    }
-
-    return res;
   }
 
   // 덱을 새로 만들고 셔플하며
@@ -230,9 +195,10 @@ export class GameGateway
     await Promise.all(
       userArr.map(async (nickname) => {
         // 새 게임이 시작됬으니 각 플레이어의 베팅금액 0으로 초기화
-        const userInfoString = await this.redisClient.hget(roomId, nickname);
-        const userInfo = JSON.parse(userInfoString);
-
+        const userInfo: GameUserInfo = await this.getUserInfoFromRedis(
+          roomId,
+          nickname,
+        );
         // 참가 버튼 누른 사람들만
         if (userInfo.isParticipated) {
           userInfo.betMoney = 0;
@@ -279,11 +245,10 @@ export class GameGateway
   // 플랍, 턴, 리버에 쓰일 카드 가져옴
   @SubscribeMessage('getCardFromDeck')
   public async getCardFromDeck(
-    @MessageBody() data: any, // roomId, order (flop, turn ,river)
+    @MessageBody('roomId') roomId: string,
+    @MessageBody('order') order: string, // (flop, turn, river)
     @ConnectedSocket() client: Socket,
   ) {
-    const roomId: string = data.roomId;
-    const order: string = data.order;
     const cards = await this.redisClient.hget(roomId, 'cards');
     console.log('getDeck cards: ', cards); ////////
     const cardInfo = {};
@@ -315,10 +280,12 @@ export class GameGateway
     @MessageBody('betMoney') betMoney: number, // 베팅한 금액
     @ConnectedSocket() client: Socket,
   ) {
-    const playerInfoString = await this.redisClient.hget(roomId, nickname);
-    const playerInfo = JSON.parse(playerInfoString);
-    playerInfo.betMoney += betMoney;
-    playerInfo.money -= betMoney;
+    const userInfo: GameUserInfo = await this.getUserInfoFromRedis(
+      roomId,
+      nickname,
+    );
+    userInfo.betMoney += betMoney;
+    userInfo.money -= betMoney;
 
     let totalBet = await this.redisClient.hget(roomId, 'totalBet');
     totalBet += betMoney;
@@ -337,11 +304,7 @@ export class GameGateway
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
     // joinRoom에서 key=socketId, value={roomId, nickname}으로 저장해 놓음
-    const socketInfoString: string = await this.redisClient.hget(
-      'sockets',
-      client.id,
-    );
-    const socketInfo = JSON.parse(socketInfoString);
+    const socketInfo: SocketInfo = await this.getSocketInfoFromRedis(client.id);
     console.log('handleDisconnection socketINfo: ', socketInfo); ////
     const { roomId, nickname } = socketInfo;
 
@@ -378,5 +341,91 @@ export class GameGateway
 
   public handleConnection(@ConnectedSocket() client: Socket): void {
     return this.logger.log(`Client connected: ${client.id}`);
+  }
+
+  checkUserExist(users: string, newUser: string): boolean {
+    const userArr = users.split('/');
+    if (userArr.includes(newUser)) return true;
+    return false;
+  }
+
+  async getUsersInfo(users: string): Promise<PublicUser[]> {
+    const userArr = users.split('/');
+    const usersInfo: PublicUser[] = [];
+    console.log('userArr: ', userArr);
+
+    await Promise.all(
+      userArr.map(async (nickname) => {
+        const user: User = await this.userRepository.findOne({
+          nickname: nickname,
+        });
+
+        usersInfo.push({
+          id: user.id,
+          nickname: user.nickname,
+          money: user.money,
+        });
+      }),
+    );
+
+    return usersInfo;
+  }
+
+  removeUser(removed: string, users: string): string {
+    let res = '';
+    const userArr = users.split('/');
+    for (let i = 0; i < userArr.length; i++) {
+      if (userArr[i] == removed) {
+        if (i == userArr.length - 1) {
+          // 제거하려는 유저가 마지막에 있는 경우 그전 유저의 /가 남으므로 제거함
+          res = res.slice(0, res.length - 1);
+        }
+        continue;
+      }
+
+      if (i == userArr.length - 1) {
+        res += userArr[i];
+      } else {
+        res += userArr[i] + '/';
+      }
+    }
+
+    return res;
+  }
+
+  async getUserInfoFromRedis(
+    roomId: string,
+    nickname: string,
+  ): Promise<GameUserInfo> {
+    const userInfoString: string = await this.redisClient.hget(
+      roomId,
+      nickname,
+    );
+    const userInfo: GameUserInfo = JSON.parse(userInfoString);
+    return userInfo;
+  }
+
+  async getSocketInfoFromRedis(socketId: string): Promise<SocketInfo> {
+    const socketInfoString: string = await this.redisClient.hget(
+      'sockets',
+      socketId,
+    );
+    const socketInfo: SocketInfo = JSON.parse(socketInfoString);
+    return socketInfo;
+  }
+
+  async calculateParticipant(
+    roomId: string,
+    increaseOrDecrease: IncreaseOrDecrease,
+  ) {
+    const participantCnt: number = await this.redisClient.hget(
+      roomId,
+      'participantCnt',
+    );
+    if (increaseOrDecrease == 'INCREASE') {
+      await this.redisClient.hset(roomId, 'participantCnt', participantCnt + 1);
+    } else {
+      await this.redisClient.hset(roomId, 'participantCnt', participantCnt - 1);
+    }
   }
 }
