@@ -61,6 +61,7 @@ export class AuthService {
 
   async checkLogin(@Req() req: Request) {
     // because of guard we already check not logined user
+    console.log('authService checkLogin: ', req.user);
     return { user: req.user };
   }
 }

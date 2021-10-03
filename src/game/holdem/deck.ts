@@ -1,8 +1,8 @@
-import { Card } from './cards.type';
+import { Card, CardSymbol } from './cards.type';
 
 function makeDeck(): Card[] {
   const deck: Card[] = [];
-  const symbols: string[] = ['spade', 'heart', 'diamond', 'clover'];
+  const symbols: CardSymbol[] = ['spade', 'heart', 'diamond', 'clover'];
   for (let i = 2; i < 15; i += 1) {
     for (const symbol of symbols) {
       const newCard: Card = {

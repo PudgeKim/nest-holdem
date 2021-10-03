@@ -1,7 +1,9 @@
 export type Card = {
-  symbol: string;
+  symbol: CardSymbol;
   num: number; // A는 14
 };
+
+export type CardSymbol = 'spade' | 'clover' | 'heart' | 'diamond';
 
 export enum CardRank {
   HighCard,

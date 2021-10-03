@@ -42,7 +42,7 @@ export class GameService {
 
   async getAllRooms() {
     const allRoomKeys: string[] = await this.client.keys('*');
-    console.log(allRoomKeys);
+    console.log('gameService getAllRooms allKeys:', allRoomKeys); ///////
     const allRooms = [];
 
     for (let i = 0; i < allRoomKeys.length; i++) {
@@ -58,9 +58,9 @@ export class GameService {
         host: hostNickname,
       });
     }
-
+    console.log('gameService getAllRooms: ', allRooms);
     return {
-      allRooms,
+      allRooms: allRooms,
     };
   }
 }

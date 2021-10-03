@@ -102,7 +102,7 @@ export class GameGateway
     );
     userInfo.isParticipated = true;
 
-    await this.redisClient.hset(roomId, nickname, userInfo);
+    this.saveUserInfoToRedis(roomId, nickname, userInfo);
 
     // 참가자수 1 증가
     this.calculateParticipant(roomId, 'INCREASE');
@@ -194,17 +194,18 @@ export class GameGateway
     console.log('startGame event check: ', userArr); //////
     await Promise.all(
       userArr.map(async (nickname) => {
-        // 새 게임이 시작됬으니 각 플레이어의 베팅금액 0으로 초기화
         const userInfo: GameUserInfo = await this.getUserInfoFromRedis(
           roomId,
           nickname,
         );
+
         // 참가 버튼 누른 사람들만
         if (userInfo.isParticipated) {
+          // 새 게임이 시작됬으니 각 플레이어의 베팅금액 0으로 초기화
           userInfo.betMoney = 0;
-          await this.redisClient.hset(roomId, nickname, userInfo);
+          await this.saveUserInfoToRedis(roomId, nickname, userInfo);
 
-          console.log('startGame userInfo: ', userInfo); ////
+          console.log('startGame userInfo: ', userInfo); ///////
           const socketId = userInfo.socketId;
 
           const card1 = deck.pop();
@@ -219,8 +220,11 @@ export class GameGateway
 
           if (nickname == sbPlayerNickname) cardsInfo.sb = true;
           if (nickname == bbPlayerNickname) cardsInfo.bb = true;
-          console.log('card1: ', card1, 'card2: ', card2); //////
-          this.server.in(socketId).emit('getFirstCards', cardsInfo);
+
+          console.log('startGame cards: ', cardsInfo);
+
+          // 참가버튼 누른사람에게만 개별적으로 보내기때문에 Ack을 받아서 다 받았는지 확인해야함
+          this.server.to(socketId).emit('getFirstCards', cardsInfo);
         }
       }),
     );
@@ -276,10 +280,10 @@ export class GameGateway
   public async betting(
     @MessageBody('roomId') roomId: string,
     @MessageBody('nickname') nickname: string,
-    @MessageBody('money') money: number,
     @MessageBody('betMoney') betMoney: number, // 베팅한 금액
     @ConnectedSocket() client: Socket,
   ) {
+    console.log('betting event: ', nickname, betMoney); //////
     const userInfo: GameUserInfo = await this.getUserInfoFromRedis(
       roomId,
       nickname,
@@ -287,7 +291,7 @@ export class GameGateway
     userInfo.betMoney += betMoney;
     userInfo.money -= betMoney;
 
-    let totalBet = await this.redisClient.hget(roomId, 'totalBet');
+    let totalBet: number = await this.redisClient.hget(roomId, 'totalBet');
     totalBet += betMoney;
     await this.redisClient.hset(roomId, 'totalBet', totalBet);
     console.log(
@@ -303,7 +307,6 @@ export class GameGateway
   public async handleDisconnect(
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
-    // joinRoom에서 key=socketId, value={roomId, nickname}으로 저장해 놓음
     const socketInfo: SocketInfo = await this.getSocketInfoFromRedis(client.id);
     console.log('handleDisconnection socketINfo: ', socketInfo); ////
     const { roomId, nickname } = socketInfo;
@@ -401,8 +404,18 @@ export class GameGateway
       roomId,
       nickname,
     );
+    console.log('fromRedis: ', userInfoString); //////
     const userInfo: GameUserInfo = JSON.parse(userInfoString);
     return userInfo;
+  }
+
+  async saveUserInfoToRedis(
+    roomId: string,
+    nickname: string,
+    userInfo: GameUserInfo,
+  ) {
+    const userInfoString = JSON.stringify(userInfo);
+    await this.redisClient.hset(roomId, nickname, userInfoString);
   }
 
   async getSocketInfoFromRedis(socketId: string): Promise<SocketInfo> {
