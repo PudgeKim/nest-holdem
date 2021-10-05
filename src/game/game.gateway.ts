@@ -21,6 +21,7 @@ import {
   GameUserInfo,
   IncreaseOrDecrease,
   SocketInfo,
+  UsersField,
 } from './game.helper.type';
 
 @WebSocketGateway({ namespace: 'holdem-room', cors: true })
@@ -63,21 +64,11 @@ export class GameGateway
       betMoney: 0,
       isDead: false,
     };
-    // key=nickname, value={money, socketId}
-    const userInfoString = JSON.stringify(userInfo);
-    await this.redisClient.hset(roomId, nickname, userInfoString);
 
-    let users: string = await this.redisClient.hget(roomId, 'users');
-    // 중복방지를 위해 없는 경우에만 추가함
-    if (!this.checkUserExist(users, nickname)) {
-      // 처음 유저는 / 없이 저장
-      if (users == '') {
-        users += String(nickname);
-      } else {
-        users += '/' + String(nickname); //  /를 구분자로 현재 방에 있는 유저들을 저장함
-      }
-      await this.redisClient.hset(roomId, 'users', users);
-    }
+    await this.saveUserInfoToRedis(roomId, nickname, userInfo);
+
+    // users는 /를 구분자로 이루어진 string   ex) batman/spiderman/catman
+    const users: string = await this.addUser(roomId, nickname, 'users');
 
     const allUsers: PublicUser[] = await this.getUsersInfo(users);
     const hostNickname: string = await this.redisClient.hget(roomId, 'host');
@@ -102,6 +93,7 @@ export class GameGateway
     );
     userInfo.isParticipated = true;
 
+    await this.addUser(roomId, nickname, 'participatedUsers');
     this.saveUserInfoToRedis(roomId, nickname, userInfo);
 
     // 참가자수 1 증가
@@ -123,13 +115,13 @@ export class GameGateway
       roomId,
       nickname,
     );
-    // 참가버튼을 누른 유저였다면 참가자 수 1 감소
+    // 참가버튼을 누른 유저였다면 참가자 수 1 감소 & 참가자에서 뺌
     if (userInfo.isParticipated) {
       this.calculateParticipant(roomId, 'DECREASE');
+      await this.removeUser(roomId, nickname, 'participatedUsers');
     }
 
-    const users = await this.redisClient.hget(roomId, 'users');
-    const remainingUsers = this.removeUser(nickname, users);
+    const remainingUsers = await this.removeUser(roomId, nickname, 'users');
     console.log('leaveRoom remainingUsers: ', remainingUsers); ///////////
     if (remainingUsers == '') {
       // 남은 유저가 없으면 방 제거
@@ -183,17 +175,19 @@ export class GameGateway
 
     const sbIdx: number = await this.redisClient.hget(roomId, 'sb');
     const bbIdx: number = await this.redisClient.hget(roomId, 'bb');
+    const users: string = await this.redisClient.hget(
+      roomId,
+      'participatedUsers',
+    );
+    const participatedUserArr: string[] = users.split('/');
 
-    const users: string = await this.redisClient.hget(roomId, 'users');
-    const userArr: string[] = users.split('/');
-
-    const sbPlayerNickname = userArr[sbIdx];
-    const bbPlayerNickname = userArr[bbIdx];
+    const sbPlayerNickname = participatedUserArr[sbIdx];
+    const bbPlayerNickname = participatedUserArr[bbIdx];
 
     const deck: Card[] = initDeck();
-    console.log('startGame event check: ', userArr); //////
+    console.log('startGame event check: ', participatedUserArr); //////
     await Promise.all(
-      userArr.map(async (nickname) => {
+      participatedUserArr.map(async (nickname) => {
         const userInfo: GameUserInfo = await this.getUserInfoFromRedis(
           roomId,
           nickname,
@@ -244,6 +238,11 @@ export class GameGateway
 
     // 새로운 게임이 시작됬으니 총 베팅금은 0원으로 초기화
     await this.redisClient.hset(roomId, 'totalBet', 0);
+
+    // minBet은 베팅을 해야할 최소 금액
+    // 예를 들어 어떤 플레이어가 12만을 베팅했으면
+    // 다음 플레이어들은 최소 12만 이상을 베팅해야함
+    await this.redisClient.hset(roomId, 'minBet', 0);
   }
 
   // 플랍, 턴, 리버에 쓰일 카드 가져옴
@@ -284,21 +283,49 @@ export class GameGateway
     @ConnectedSocket() client: Socket,
   ) {
     console.log('betting event: ', nickname, betMoney); //////
+    const minBet = await this.redisClient.hget(roomId, 'minBet');
+    if (minBet > betMoney) {
+      client.emit('cannotBetMoney', {
+        msg: `betMoney should be equal or more than ${minBet}`,
+      });
+      return;
+    }
+
+    await this.redisClient.hset(roomId, 'minBet', betMoney);
+
     const userInfo: GameUserInfo = await this.getUserInfoFromRedis(
       roomId,
       nickname,
     );
     userInfo.betMoney += betMoney;
     userInfo.money -= betMoney;
-
-    let totalBet: number = await this.redisClient.hget(roomId, 'totalBet');
-    totalBet += betMoney;
-    await this.redisClient.hset(roomId, 'totalBet', totalBet);
+    await this.saveUserInfoToRedis(roomId, nickname, userInfo);
     console.log(
-      'betting totalBet: ',
+      'betting userInfo: ',
+      userInfo,
+      typeof userInfo.betMoney,
+      typeof userInfo.money,
+    );
+    const totalBet: number = parseInt(
       await this.redisClient.hget(roomId, 'totalBet'),
-    ); //////////
+    );
+    console.log('totalBet: ', totalBet, typeof totalBet); //////
+    await this.redisClient.hset(roomId, 'totalBet', totalBet + betMoney);
+
+    const storedTotalBet = await this.redisClient.hget(roomId, 'totalBet');
+    console.log('storedTotalBet: ', storedTotalBet);
+    // 모두에게 보내주어야 서로의 베팅금액을 확인할 수 있음
+    this.server.in(roomId).emit('bettingEvent', {
+      nickname,
+      betMoney,
+      totalBet: storedTotalBet,
+    });
   }
+
+  // 참가자들이 베팅 후에 Ack을 보내는데
+  // 그 Ack들이 참가자 수만큼 들어있는지 확인 후
+  // 게임을 진행시킴
+  //@SubscribeMessage('checkBettingAck')
 
   public afterInit(server: Server): void {
     return this.logger.log('Init');
@@ -314,8 +341,7 @@ export class GameGateway
     // disconnected된 client 제거
     await this.redisClient.hdel('sockets', client.id);
 
-    const users = await this.redisClient.hget(roomId, 'users');
-    const remainingUsers = this.removeUser(nickname, users);
+    const remainingUsers = await this.removeUser(roomId, nickname, 'users');
     console.log('handleDisconnection remainingUsers: ', remainingUsers); /////
     if (remainingUsers == '') {
       // 남은 유저가 없으면 방 제거
@@ -374,11 +400,37 @@ export class GameGateway
     return usersInfo;
   }
 
-  removeUser(removed: string, users: string): string {
+  async addUser(
+    roomId: string,
+    nickname: string,
+    fieldName: UsersField,
+  ): Promise<string> {
+    let users: string = await this.redisClient.hget(roomId, fieldName);
+    // 중복방지를 위해 없는 경우에만 추가함
+    if (!this.checkUserExist(users, nickname)) {
+      // 처음 유저는 / 없이 저장
+      if (users == '') {
+        users += String(nickname);
+      } else {
+        users += '/' + String(nickname); //  /를 구분자로 현재 방에 있는 유저들을 저장함
+      }
+      await this.redisClient.hset(roomId, fieldName, users);
+    }
+    return users;
+  }
+
+  async removeUser(
+    roomId: string,
+    nickname: string,
+    fieldName: UsersField,
+  ): Promise<string> {
+    const users = await this.redisClient.hget(roomId, fieldName);
+    if (users == '') return '';
+
     let res = '';
     const userArr = users.split('/');
     for (let i = 0; i < userArr.length; i++) {
-      if (userArr[i] == removed) {
+      if (userArr[i] == nickname) {
         if (i == userArr.length - 1) {
           // 제거하려는 유저가 마지막에 있는 경우 그전 유저의 /가 남으므로 제거함
           res = res.slice(0, res.length - 1);

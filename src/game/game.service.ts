@@ -14,6 +14,7 @@ export class GameService {
     const { userId, nickname, roomName } = createRoomDto;
     const roomId: string = v4();
 
+    // playerOrder = 참가자들 게임 순서 (participantCnt로 나머지 연산해서 차례 구함)
     // sb = small blind index
     // bb = big blind index
     await this.client.hmset(
@@ -24,7 +25,11 @@ export class GameService {
       roomName,
       'users',
       '',
+      'participatedUsers',
+      '',
       'participantCnt',
+      0,
+      'playerOrder',
       0,
       'sb',
       0,
