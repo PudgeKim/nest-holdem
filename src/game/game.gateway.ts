@@ -92,10 +92,10 @@ export class GameGateway
       nickname,
     );
     userInfo.isParticipated = true;
-
-    await this.addUser(roomId, nickname, 'participatedUsers');
     this.saveUserInfoToRedis(roomId, nickname, userInfo);
 
+    // 참가자 리스트에 추가
+    await this.addUser(roomId, nickname, 'participants');
     // 참가자수 1 증가
     this.calculateParticipant(roomId, 'INCREASE');
 
@@ -118,7 +118,7 @@ export class GameGateway
     // 참가버튼을 누른 유저였다면 참가자 수 1 감소 & 참가자에서 뺌
     if (userInfo.isParticipated) {
       this.calculateParticipant(roomId, 'DECREASE');
-      await this.removeUser(roomId, nickname, 'participatedUsers');
+      await this.removeUser(roomId, nickname, 'participants');
     }
 
     const remainingUsers = await this.removeUser(roomId, nickname, 'users');
@@ -175,51 +175,49 @@ export class GameGateway
 
     const sbIdx: number = await this.redisClient.hget(roomId, 'sb');
     const bbIdx: number = await this.redisClient.hget(roomId, 'bb');
-    const users: string = await this.redisClient.hget(
-      roomId,
-      'participatedUsers',
-    );
-    const participatedUserArr: string[] = users.split('/');
+    const users: string = await this.redisClient.hget(roomId, 'participants');
+    const participants: string[] = users.split('/');
 
-    const sbPlayerNickname = participatedUserArr[sbIdx];
-    const bbPlayerNickname = participatedUserArr[bbIdx];
+    const sbPlayerNickname = participants[sbIdx];
+    const bbPlayerNickname = participants[bbIdx];
 
     const deck: Card[] = initDeck();
-    console.log('startGame event check: ', participatedUserArr); //////
+    console.log('startGame event check: ', participants); //////
     await Promise.all(
-      participatedUserArr.map(async (nickname) => {
+      // 게임 참가 버튼 누른 사람들에게만 데이터 전달
+      participants.map(async (nickname) => {
         const userInfo: GameUserInfo = await this.getUserInfoFromRedis(
           roomId,
           nickname,
         );
 
-        // 참가 버튼 누른 사람들만
-        if (userInfo.isParticipated) {
-          // 새 게임이 시작됬으니 각 플레이어의 베팅금액 0으로 초기화
-          userInfo.betMoney = 0;
-          await this.saveUserInfoToRedis(roomId, nickname, userInfo);
+        // 새 게임이 시작됬으니 각 플레이어의 베팅금액 0으로 초기화
+        userInfo.betMoney = 0;
+        await this.saveUserInfoToRedis(roomId, nickname, userInfo);
 
-          console.log('startGame userInfo: ', userInfo); ///////
-          const socketId = userInfo.socketId;
+        console.log('startGame userInfo: ', userInfo); ///////
+        const socketId = userInfo.socketId;
 
-          const card1 = deck.pop();
-          const card2 = deck.pop();
+        const card1 = deck.pop();
+        const card2 = deck.pop();
 
-          const cardsInfo = {
-            card1,
-            card2,
-            sb: false,
-            bb: false,
-          };
+        const playerInThisOrder = await this.getNicknameInThisOrder(roomId);
 
-          if (nickname == sbPlayerNickname) cardsInfo.sb = true;
-          if (nickname == bbPlayerNickname) cardsInfo.bb = true;
+        const dataToEmit = {
+          card1,
+          card2,
+          sb: false,
+          bb: false,
+          playerInThisOrder,
+        };
 
-          console.log('startGame cards: ', cardsInfo);
+        if (nickname == sbPlayerNickname) dataToEmit.sb = true;
+        if (nickname == bbPlayerNickname) dataToEmit.bb = true;
 
-          // 참가버튼 누른사람에게만 개별적으로 보내기때문에 Ack을 받아서 다 받았는지 확인해야함
-          this.server.to(socketId).emit('getFirstCards', cardsInfo);
-        }
+        console.log('startGame cards: ', dataToEmit);
+
+        // 참가버튼 누른사람에게만 개별적으로 보내기때문에 Ack을 받아서 다 받았는지 확인해야함
+        this.server.to(socketId).emit('getFirstCards', dataToEmit);
       }),
     );
 
@@ -314,11 +312,14 @@ export class GameGateway
 
     const storedTotalBet = await this.redisClient.hget(roomId, 'totalBet');
     console.log('storedTotalBet: ', storedTotalBet);
-    // 모두에게 보내주어야 서로의 베팅금액을 확인할 수 있음
+    const playerInThisOrder: string = await this.getNicknameInThisOrder(roomId);
+
+    // 모두에게 보내주어야 서로의 베팅금액과 누구 순서인지 알 수 있음
     this.server.in(roomId).emit('bettingEvent', {
       nickname,
       betMoney,
       totalBet: storedTotalBet,
+      playerInThisOrder,
     });
   }
 
@@ -492,5 +493,20 @@ export class GameGateway
     } else {
       await this.redisClient.hset(roomId, 'participantCnt', participantCnt - 1);
     }
+  }
+
+  // 이번 순서에 맞는 닉네임 return
+  async getNicknameInThisOrder(roomId: string): Promise<string> {
+    const playerOrder: number = await this.redisClient.hget(
+      roomId,
+      'playerOrder',
+    );
+    const participants: string[] = await this.redisClient
+      .hget(roomId, 'participants')
+      .split('/');
+    const idx = playerOrder % participants.length;
+    const player = participants[idx];
+
+    return player;
   }
 }
