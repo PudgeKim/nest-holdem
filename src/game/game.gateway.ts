@@ -175,17 +175,20 @@ export class GameGateway
 
     const sbIdx: number = await this.redisClient.hget(roomId, 'sb');
     const bbIdx: number = await this.redisClient.hget(roomId, 'bb');
-    const users: string = await this.redisClient.hget(roomId, 'participants');
-    const participants: string[] = users.split('/');
+    const participants: string = await this.redisClient.hget(
+      roomId,
+      'participants',
+    );
+    const participantArr: string[] = participants.split('/');
 
-    const sbPlayerNickname = participants[sbIdx];
-    const bbPlayerNickname = participants[bbIdx];
+    const sbPlayerNickname = participantArr[sbIdx];
+    const bbPlayerNickname = participantArr[bbIdx];
 
     const deck: Card[] = initDeck();
-    console.log('startGame event check: ', participants); //////
+    console.log('startGame event check: ', participantArr); //////
     await Promise.all(
       // 게임 참가 버튼 누른 사람들에게만 데이터 전달
-      participants.map(async (nickname) => {
+      participantArr.map(async (nickname) => {
         const userInfo: GameUserInfo = await this.getUserInfoFromRedis(
           roomId,
           nickname,
@@ -220,6 +223,8 @@ export class GameGateway
         this.server.to(socketId).emit('getFirstCards', dataToEmit);
       }),
     );
+
+    await this.increasePlayerOrder(roomId);
 
     // 남은 덱에서 필드에 쓰일 5장은 redis에 저장해놓음
     let cards = '';
@@ -321,6 +326,8 @@ export class GameGateway
       totalBet: storedTotalBet,
       playerInThisOrder,
     });
+
+    await this.increasePlayerOrder(roomId);
   }
 
   // 참가자들이 베팅 후에 Ack을 보내는데
@@ -501,12 +508,24 @@ export class GameGateway
       roomId,
       'playerOrder',
     );
-    const participants: string[] = await this.redisClient
-      .hget(roomId, 'participants')
-      .split('/');
-    const idx = playerOrder % participants.length;
-    const player = participants[idx];
+    const participants: string = await this.redisClient.hget(
+      roomId,
+      'participants',
+    );
+
+    const participantArr = participants.split('/');
+    const idx = Number(playerOrder) % participantArr.length;
+    const player = participantArr[idx];
+    console.log('participantArr: ', participantArr);
+    console.log('idx: ', idx);
+    console.log('playerOrder: ', playerOrder);
+    console.log('length: ', participantArr.length);
 
     return player;
+  }
+
+  async increasePlayerOrder(roomId: string) {
+    const playerOrder = await this.redisClient.hget(roomId, 'playerOrder');
+    await this.redisClient.hset(roomId, 'playerOrder', Number(playerOrder) + 1);
   }
 }
